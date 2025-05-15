@@ -18,6 +18,7 @@ if (window.socket) {
   let isDrawing = false;
   let lastX = 0;
   let lastY = 0;
+  let isDrawer = false;
 
   socket.onopen = () => {
     console.log("WebSocket connection established.");
@@ -30,12 +31,17 @@ if (window.socket) {
   });
 
   socket.onmessage = (event) => {
+    console.log("Received message data:", event.data);
     try {
       const parsedMessage = JSON.parse(event.data);
       const type = parsedMessage.type;
-      const data = parsedMessage.data;
 
-      if (type === "draw") {
+      if (type === "connection") {
+        if (parsedMessage && parsedMessage.isDrawer !== undefined) {
+          isDrawer = parsedMessage.isDrawer;
+          console.log("Is this client the drawer?", isDrawer);
+        }
+      } else if (type === "draw") {
         // Draw on the canvas based on received data
         drawLine(
           drawingCanvas.getContext("2d"),
@@ -49,14 +55,22 @@ if (window.socket) {
       } else if (type === "clear") {
         // Clear the canvas
         clearCanvas();
-        // drawingCanvas
-        // .getContext("2d")
-        // .clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
       } else if (type === "word") {
-        currentWordDisplay.textContent = `Word: ${data.word}`;
+        console.log("Parsed message: ", parsedMessage);
+        if (parsedMessage && parsedMessage.word) {
+          const wordLength = parsedMessage.word.length;
+          const underscores = "_ ".repeat(wordLength).trim();
+          currentWordDisplay.textContent = `Word: ${underscores}`;
+          console.log("Displayed underscores:", underscores);
+          if (isDrawer) {
+            console.log("Drawer\'s word:", parsedMessage.word);
+          }
+        } else {
+          console.warn("Received 'word' message without a word.");
+        }
       } else if (type === "message") {
         const listItem = document.createElement("li");
-        listItem.textContent = `Server: ${data.text}`;
+        listItem.textContent = `Server: ${parsedMessage.data.text}`;
         chatMessages.appendChild(listItem);
       } else {
         // Handle other text messages as chat

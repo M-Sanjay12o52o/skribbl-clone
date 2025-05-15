@@ -10,11 +10,53 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 
 const clients = new Map();
+const words = ["apple", "banana", "cherry", "grape", "orange"];
+let currentWord = null;
+let drawer = null;
+
+function selectWord() {
+  return words[Math.floor(Math.random() * words.length)];
+}
 
 wss.on("connection", (ws) => {
   const clientId = uuid.v4();
   clients.set(clientId, ws);
   console.log(`Client connected: ${clientId}`);
+  console.log(`Value of 'drawer' at connection: ${drawer}`);
+  console.log(
+    `Current drawer: ${drawer ? "assigned" : "null"}, Number of clients: ${clients.size}`,
+  );
+
+  const connectionMessage = { type: "connection", clientId, isDrawer: false };
+
+  if (!drawer && clients.size === 1) {
+    console.log("First client connected, assigning as drawer.");
+    drawer = ws;
+    currentWord = selectWord();
+    console.log(`Selected word: ${currentWord}`);
+    connectionMessage.isDrawer = true;
+    ws.send(JSON.stringify({ type: "word", word: currentWord }));
+    console.log("Word sent to drawer.");
+    clients.forEach((client) => {
+      if (client !== ws && client.readyState === WebSocket.OPEN) {
+        client.send(
+          JSON.stringify({ type: "message", text: "It's your turn to guess!" }),
+        );
+        console.log("Guess turn message sent to other client.");
+      }
+    });
+  } else if (drawer !== ws) {
+    console.log("Subsequent client connected, informing to guess.");
+    ws.send(
+      JSON.stringify({ type: "message", text: "It's your turn to guess!" }),
+    );
+  } else if (drawer === ws && currentWord) {
+    console.log("Drawer reconnected, sending the word again.");
+    connectionMessage.isDrawer = true;
+    ws.send(JSON.stringify({ type: "word", word: currentWord }));
+  }
+
+  ws.send(JSON.stringify(connectionMessage));
 
   ws.on("message", (message) => {
     try {
@@ -23,7 +65,6 @@ wss.on("connection", (ws) => {
       const data = parsedMessage.data;
 
       if (type === "draw") {
-        // Handle draw message - for now, let's just log it
         console.log("Received draw message:", data);
         clients.forEach((client, id) => {
           console.log(
@@ -39,7 +80,6 @@ wss.on("connection", (ws) => {
           }
         });
       } else if (type === "clear") {
-        // Handle clear message - for now, let's just log it
         console.log("Received clear message");
         clients.forEach((client, id) => {
           console.log(`Attempting to send clear to client ID: ${id}`);
@@ -51,9 +91,7 @@ wss.on("connection", (ws) => {
           }
         });
       } else {
-        // Handle other text messages as chat
         console.log(`Received message: ${message.toString()} from ${clientId}`);
-        // Broadcast the message to all other clients
         clients.forEach((client, id) => {
           if (id !== clientId && client.readyState === WebSocket.OPEN) {
             client.send(
@@ -67,7 +105,6 @@ wss.on("connection", (ws) => {
       }
     } catch (error) {
       console.error("Failed to parse message or handle:", error);
-      // If it's not JSON, assume it's a chat message
       clients.forEach((client, id) => {
         if (id !== clientId && client.readyState === WebSocket.OPEN) {
           client.send(
@@ -84,11 +121,35 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     clients.delete(clientId);
     console.log(`Client disconnected: ${clientId}`);
+    if (drawer === ws) {
+      drawer = null;
+      currentWord = null;
+      if (clients.size > 0) {
+        const nextDrawerId = clients.keys().next().value;
+        drawer = clients.get(nextDrawerId);
+        currentWord = selectWord();
+        drawer.send(JSON.stringify({ type: "word", word: currentWord }));
+        clients.forEach((client, id) => {
+          if (id !== nextDrawerId && client.readyState === WebSocket.OPEN) {
+            client.send(
+              JSON.stringify({
+                type: "message",
+                text: "It's your turn to guess!",
+              }),
+            );
+          }
+        });
+      }
+    }
   });
 
   ws.on("error", (error) => {
     console.error(`WebSocket error for client ${clientId}: ${error}`);
     clients.delete(clientId);
+    if (drawer === ws) {
+      drawer = null;
+      currentWord = null;
+    }
   });
 });
 
