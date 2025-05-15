@@ -5,6 +5,7 @@ const ctx = drawingCanvas.getContext("2d");
 const messageInput = document.getElementById("messageInput");
 const sendButton = document.getElementById("sendButton");
 const chatMessages = document.getElementById("chatMessages");
+const currentWordDisplay = document.getElementById("currentWord");
 
 // Establish WebSocket connection to the backend
 const socket = new WebSocket("ws://localhost:3000");
@@ -26,11 +27,16 @@ socket.onmessage = (event) => {
     } else if (type === "clear") {
       // Clear the canvas
       ctx.clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
-    } else {
-      // Handle other message types (like chat)
-      const message = event.data;
+    } else if (type === "word") {
+      currentWordDisplay.textContent = `Word: ${data.word}`;
+    } else if (type === "message") {
       const listItem = document.createElement("li");
-      listItem.textContent = `Server: ${message}`;
+      listItem.textContent = `Server: ${data.text}`;
+      chatMessages.appendChild(listItem);
+    } else {
+      // Handle other text messages as chat
+      const listItem = document.createElement("li");
+      listItem.textContent = `Server: ${event.data}`;
       chatMessages.appendChild(listItem);
     }
   } catch (error) {
