@@ -77,10 +77,17 @@ function updateBrushSize(e) {
   currentBrushSize = e.target.value;
 }
 
-function clearCanvas() {
+function clearCanvas(passedSocket) {
+  console.log("From clearCanavs function");
+  console.log(
+    "Socket state on clear:",
+    passedSocket && passedSocket.readyState,
+  );
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: "clear" }));
+  if (passedSocket && passedSocket.readyState === WebSocket.OPEN) {
+    passedSocket.send(JSON.stringify({ type: "clear" }));
+  } else {
+    console.log("Socket not connected, cannot send clear messsage.");
   }
 }
 
@@ -95,4 +102,3 @@ function clearCanvas() {
 
 colorPicker.addEventListener("change", updateColor);
 brushSize.addEventListener("change", updateBrushSize);
-clearCanvasButton.addEventListener("click", clearCanvas);

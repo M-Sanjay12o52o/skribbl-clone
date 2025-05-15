@@ -41,6 +41,15 @@ wss.on("connection", (ws) => {
       } else if (type === "clear") {
         // Handle clear message - for now, let's just log it
         console.log("Received clear message");
+        clients.forEach((client, id) => {
+          console.log(`Attempting to send clear to client ID: ${id}`);
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: "clear" }));
+            console.log(`Successfully send clear to client ID: ${id}`);
+          } else {
+            console.log(`Not sending clear to client ID: ${id} (not open)`);
+          }
+        });
       } else {
         // Handle other text messages as chat
         console.log(`Received message: ${message.toString()} from ${clientId}`);

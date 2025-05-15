@@ -24,6 +24,11 @@ if (window.socket) {
     currentSocket = socket;
   };
 
+  const clearCanvasButton = document.getElementById("clearCanvas");
+  clearCanvasButton.addEventListener("click", () => {
+    clearCanvas(currentSocket);
+  });
+
   socket.onmessage = (event) => {
     try {
       const parsedMessage = JSON.parse(event.data);
@@ -43,9 +48,10 @@ if (window.socket) {
         );
       } else if (type === "clear") {
         // Clear the canvas
-        drawingCanvas
-          .getContext("2d")
-          .clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
+        clearCanvas();
+        // drawingCanvas
+        // .getContext("2d")
+        // .clearRect(0, 0, drawingCanvas.width, drawingCanvas.height);
       } else if (type === "word") {
         currentWordDisplay.textContent = `Word: ${data.word}`;
       } else if (type === "message") {
