@@ -1,3 +1,5 @@
+// backend/server.js
+
 const express = require("express");
 const { WebSocketServer } = require("ws");
 const http = require("http");
@@ -5,13 +7,9 @@ const http = require("http");
 const app = express();
 const port = 3000;
 
-// create an http server from the express app
 const server = http.createServer(app);
-
-// create a websocket server instance
 const wss = new WebSocketServer({ server });
 
-// store connected clients (for a single default room for now);
 const clients = new Set();
 
 wss.on("connection", (ws) => {
@@ -19,14 +17,39 @@ wss.on("connection", (ws) => {
   clients.add(ws);
 
   ws.on("message", (message) => {
-    console.log("received: %s", message);
+    try {
+      const parsedMessage = JSON.parse(message.toString());
+      const type = parsedMessage.type;
+      const data = parsedMessage.data;
 
-    // broadcast the received message to all other cients
-    clients.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(message.toString());
+      if (type === "draw") {
+        // Broadcast drawing data to all other clients
+        clients.forEach((client) => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: "draw", data }));
+          }
+        });
+      } else if (type === "clear") {
+        // Broadcast clear canvas command to all other clients
+        clients.forEach((client) => {
+          if (client !== ws && client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ type: "clear" }));
+          }
+        });
+      } else {
+        // Handle other message types (like chat)
+        clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(message.toString()); // For now, just broadcast text
+          }
+        });
       }
-    });
+    } catch (error) {
+      console.error(
+        "Failed to parse message or handle WebSocket event:",
+        error,
+      );
+    }
   });
 
   ws.on("close", () => {
@@ -35,7 +58,7 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("error", (error) => {
-    console.error("Websocket error: ", error);
+    console.error("WebSocket error: ", error);
     clients.delete(ws);
   });
 });

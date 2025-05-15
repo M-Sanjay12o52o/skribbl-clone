@@ -10,13 +10,26 @@ let lastY = 0;
 let currentColor = colorPicker.value;
 let currentBrushSize = brushSize.value;
 
+// get the WebSocket object from script.js (assuming it's in the global scope)
+const socket = window.socket;
+
 function startDrawing(e) {
   isDrawing = true;
   [lastX, lastY] = [e.offsetX, e.offsetY];
 }
 
 function draw(e) {
-  if (!isDrawing) return;
+  if (!isDrawing || !socket || socket.readyState !== WebSocket.OPEN) return;
+
+  const data = {
+    x: e.offsetX,
+    y: e.offsetY,
+    lastX,
+    lastY,
+    color: currentColor,
+    size: currentBrushSize,
+  };
+  socket.send(JSON.stringify({ type: "draw", data }));
 
   ctx.beginPath();
 
@@ -45,6 +58,9 @@ function updateBrushSize(e) {
 
 function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (socket && socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "clear" }));
+  }
 }
 
 canvas.addEventListener("mousedown", startDrawing);
