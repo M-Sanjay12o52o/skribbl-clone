@@ -1,0 +1,24 @@
+# Node.js specific
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Frontend build artifacts (if you decide to use a build process later)
+# dist/
+# build/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor specific files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.asv
+
+# Log files
+*.log
+
+.env
