@@ -121,6 +121,7 @@ if (window.socket) {
       color: currentColor,
       size: currentBrushSize,
     };
+    // Send the drawing data to the backend
     currentSocket.send(JSON.stringify({ type: "draw", data }));
 
     const ctx = drawingCanvas.getContext("2d");

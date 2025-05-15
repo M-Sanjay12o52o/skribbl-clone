@@ -1,50 +1,20 @@
-// backend/server.js
-
-const express = require("express");
-const { WebSocketServer } = require("ws");
+const WebSocket = require("ws");
 const http = require("http");
-const { json } = require("stream/consumers");
+const uuid = require("uuid");
 
-const app = express();
-const port = 3000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end("WebSocket server is running");
+});
 
-const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+const wss = new WebSocket.Server({ server });
 
-const clients = new Set();
-const words = ["apple", "banana", "cherry", "grape", "orange"];
-let currentWord = null;
-let drawer = null;
-
-function selectWord() {
-  return words[Math.floor(Math.random() * words.length)];
-}
+const clients = new Map();
 
 wss.on("connection", (ws) => {
-  console.log("Client connected");
-  clients.add(ws);
-
-  if (!drawer && clients.size === 1) {
-    // first connected client is the drawer for now
-    drawer = ws;
-    currentWord = selectWord();
-    ws.send(JSON.stringify({ type: "word", word: currentWord }));
-    clients.forEach((client) => {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
-        client.send(
-          JSON.stringify({ type: "message", text: "It's your turn to guess!" }),
-        );
-      }
-    });
-  } else if (drawer !== ws) {
-    // subsequent cients are guessers
-    ws.send(
-      JSON.stringify({ type: "message", text: "It's your turn to guess!" }),
-    );
-  } else if (drawer === ws && currentWord) {
-    // if the drawer reconnects, send them the word again (basic handling)
-    ws.send(JSON.stringify({ type: "word", word: currentWord }));
-  }
+  const clientId = uuid.v4();
+  clients.set(clientId, ws);
+  console.log(`Client connected: ${clientId}`);
 
   ws.on("message", (message) => {
     try {
@@ -53,75 +23,67 @@ wss.on("connection", (ws) => {
       const data = parsedMessage.data;
 
       if (type === "draw") {
-        // Broadcast drawing data to all other clients
-        clients.forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
+        // Handle draw message - for now, let's just log it
+        console.log("Received draw message:", data);
+        clients.forEach((client, id) => {
+          console.log(
+            `Attempting to send draw to client ID: ${id}, sender ID: ${clientId}`,
+          );
+          if (id !== clientId && client.readyState === WebSocket.OPEN) {
             client.send(JSON.stringify({ type: "draw", data }));
+            console.log(`Successfully sent draw to client ID: ${id}`);
+          } else {
+            console.log(
+              `Not sending draw to client ID: ${id} (same sender or not open)`,
+            );
           }
         });
       } else if (type === "clear") {
-        // Broadcast clear canvas command to all other clients
-        clients.forEach((client) => {
-          if (client !== ws && client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ type: "clear" }));
-          }
-        });
+        // Handle clear message - for now, let's just log it
+        console.log("Received clear message");
       } else {
-        // Handle other message types (like chat)
-        clients.forEach((client) => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(message.toString()); // For now, just broadcast text
-          }
-        });
-      }
-    } catch (error) {
-      console.error(
-        "Failed to parse message or handle WebSocket event:",
-        error,
-      );
-    }
-  });
-
-  ws.on("close", () => {
-    console.log("Client disconnected");
-    clients.delete(ws);
-    if (drawer === ws) {
-      drawer = null;
-      currentWord = null;
-      // basic logic: if the drawer leaves, reset for the next lesson
-      if (clients.size > 0) {
-        const nextDrawer = Array.from(clients)[0];
-        drawer = nextDrawer;
-        currentWord = selectWord();
-        nextDrawer.send(JSON.stringify({ type: "word", word: currentWord }));
-        clients.forEach((client) => {
-          if (client !== nextDrawer && client.readyState === WebSocket.OPEN) {
+        // Handle other text messages as chat
+        console.log(`Received message: ${message.toString()} from ${clientId}`);
+        // Broadcast the message to all other clients
+        clients.forEach((client, id) => {
+          if (id !== clientId && client.readyState === WebSocket.OPEN) {
             client.send(
               JSON.stringify({
                 type: "message",
-                text: "It's your turn to guess!",
+                data: { text: message.toString() },
               }),
             );
           }
         });
       }
+    } catch (error) {
+      console.error("Failed to parse message or handle:", error);
+      // If it's not JSON, assume it's a chat message
+      clients.forEach((client, id) => {
+        if (id !== clientId && client.readyState === WebSocket.OPEN) {
+          client.send(
+            JSON.stringify({
+              type: "message",
+              data: { text: message.toString() },
+            }),
+          );
+        }
+      });
     }
+  });
+
+  ws.on("close", () => {
+    clients.delete(clientId);
+    console.log(`Client disconnected: ${clientId}`);
   });
 
   ws.on("error", (error) => {
-    console.error("WebSocket error: ", error);
-    clients.delete(ws);
-    if (drawer === ws) {
-      drawer = nulll;
-      currentWord = null;
-    }
+    console.error(`WebSocket error for client ${clientId}: ${error}`);
+    clients.delete(clientId);
   });
 });
 
-app.get("/", (req, res) => {
-  res.send("Skribbl.io Clone backend");
-});
-
-server.listen(port, () => {
-  console.log(`Server listening on http://localhost:${port}`);
+const PORT = 3000;
+server.listen(PORT, () => {
+  console.log(`Server listening on http://localhost:${PORT}`);
 });
